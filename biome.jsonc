@@ -12,7 +12,8 @@
       "!**/node_modules",
       "!!**/.next",
       "!!**/.turbo",
-      "!!**/public"
+      "!!**/public",
+      "!**/bundle.js"
     ]
   },
   "assist": {

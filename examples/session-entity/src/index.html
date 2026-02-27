@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entity Provider - Session Management Demo</title>
+    <style>
+    body {
+      font-family: monospace;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    h1 {
+      font-size: 1.2em;
+    }
+    .session-info {
+      background: #f0f0f0;
+      padding: 16px;
+      border-radius: 4px;
+      margin: 16px 0;
+    }
+    .session-id {
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+    .buttons {
+      display: flex;
+      gap: 8px;
+      margin: 16px 0;
+    }
+    button {
+      padding: 8px 16px;
+      cursor: pointer;
+      font-family: monospace;
+    }
+    #log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      border-radius: 4px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-size: 0.85em;
+      white-space: pre-wrap;
+    }
+    .log-entry {
+      margin-bottom: 8px;
+      border-bottom: 1px solid #333;
+      padding-bottom: 8px;
+    }
+    .log-session {
+      color: #4ec9b0;
+    }
+    .log-body {
+      color: #ce9178;
+    }
+    .log-resource {
+      color: #9cdcfe;
+    }
+    .log-rotation {
+      color: #dcdcaa;
+      font-weight: bold;
+    }
+    </style>
+  </head>
+  <body>
+    <h1>Entity Provider - Browser Session Demo</h1>
+    <p>
+      Demonstrates session management using the Entity Provider pattern from the
+      <a
+        href="https://github.com/open-telemetry/opentelemetry-specification/pull/4665"
+        >OTel Entity OTEP</a
+      >. Session identity is modeled as an Entity on the Resource, not as a
+      processor-injected attribute.
+    </p>
+
+    <div class="session-info">
+      Current session: <span id="session-id" class="session-id">--</span>
+      <br>
+      <small>Inactivity timeout: 15s (for demo purposes)</small>
+    </div>
+
+    <div class="buttons">
+      <button id="btn-emit-log">Emit Log</button>
+      <button id="btn-force-rotate">Force Session Rotation</button>
+      <button id="btn-clear-log">Clear Output</button>
+    </div>
+
+    <div id="log"></div>
+
+    <script src="./bundle.js"></script>
+  </body>
+</html>

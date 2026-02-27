@@ -18,10 +18,10 @@ import {
 import {
   createDefaultSessionIdGenerator,
   createLocalStorageSessionStore,
-  createSessionLogRecordProcessor,
   createSessionManager,
   createSessionSpanProcessor,
 } from '@opentelemetry/web-common';
+import { SessionAwareLoggerProvider } from './entity/SessionAwareLoggerProvider.ts';
 import type { BrowserSDKConfiguration } from './types.ts';
 
 export function configureBrowserSDK(config: BrowserSDKConfiguration): {
@@ -54,8 +54,8 @@ export function configureBrowserSDK(config: BrowserSDKConfiguration): {
       sessionStore: createLocalStorageSessionStore(),
     });
 
+    // Traces still use the processor approach for now (entity prototype is LoggerProvider only)
     spanProcessors.push(createSessionSpanProcessor(sessionManager));
-    logRecordProcessors.push(createSessionLogRecordProcessor(sessionManager));
   }
 
   // --- Providers ---
@@ -65,10 +65,21 @@ export function configureBrowserSDK(config: BrowserSDKConfiguration): {
   });
   trace.setGlobalTracerProvider(tracerProvider);
 
-  const loggerProvider = new LoggerProvider({
-    resource,
-    processors: logRecordProcessors,
-  });
+  // For logs: use SessionAwareLoggerProvider when session tracking is enabled.
+  // This models the session as an Entity on the Resource (per the Entity Provider OTEP)
+  // instead of injecting session.id as an attribute via a processor.
+  let loggerProvider: LoggerProvider | SessionAwareLoggerProvider;
+  if (sessionManager) {
+    loggerProvider = new SessionAwareLoggerProvider(
+      { resource, processors: logRecordProcessors },
+      sessionManager,
+    );
+  } else {
+    loggerProvider = new LoggerProvider({
+      resource,
+      processors: logRecordProcessors,
+    });
+  }
   logs.setGlobalLoggerProvider(loggerProvider);
 
   // --- Instrumentations ---

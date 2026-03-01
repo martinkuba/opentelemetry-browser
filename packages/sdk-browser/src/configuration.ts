@@ -18,10 +18,11 @@ import {
 import {
   createDefaultSessionIdGenerator,
   createLocalStorageSessionStore,
-  createSessionLogRecordProcessor,
   createSessionManager,
   createSessionSpanProcessor,
 } from '@opentelemetry/web-common';
+import { createSessionEntity } from './entity/createSessionEntity.ts';
+import { EntityAwareLoggerProvider } from './entity/EntityAwareLoggerProvider.ts';
 import type { BrowserSDKConfiguration } from './types.ts';
 
 export function configureBrowserSDK(config: BrowserSDKConfiguration): {
@@ -54,8 +55,8 @@ export function configureBrowserSDK(config: BrowserSDKConfiguration): {
       sessionStore: createLocalStorageSessionStore(),
     });
 
+    // Traces still use the processor approach for now (entity prototype is LoggerProvider only)
     spanProcessors.push(createSessionSpanProcessor(sessionManager));
-    logRecordProcessors.push(createSessionLogRecordProcessor(sessionManager));
   }
 
   // --- Providers ---
@@ -65,10 +66,39 @@ export function configureBrowserSDK(config: BrowserSDKConfiguration): {
   });
   trace.setGlobalTracerProvider(tracerProvider);
 
-  const loggerProvider = new LoggerProvider({
-    resource,
-    processors: logRecordProcessors,
-  });
+  // For logs: use EntityAwareLoggerProvider when session tracking is enabled.
+  // This models the session as an Entity on the Resource (per the Entity Provider OTEP)
+  // instead of injecting session.id as an attribute via a processor.
+  let loggerProvider: LoggerProvider | EntityAwareLoggerProvider;
+  if (sessionManager) {
+    const entityLoggerProvider = new EntityAwareLoggerProvider({
+      resource,
+      processors: logRecordProcessors,
+    });
+
+    // Bind to the current session entity
+    const sessionId = sessionManager.getSessionId();
+    if (sessionId) {
+      entityLoggerProvider.setEntity(createSessionEntity(sessionId));
+    }
+
+    // Rebind on session rotation
+    sessionManager.addObserver({
+      onSessionStarted(session) {
+        entityLoggerProvider.setEntity(createSessionEntity(session.id));
+      },
+      onSessionEnded() {
+        entityLoggerProvider.forceFlush();
+      },
+    });
+
+    loggerProvider = entityLoggerProvider;
+  } else {
+    loggerProvider = new LoggerProvider({
+      resource,
+      processors: logRecordProcessors,
+    });
+  }
   logs.setGlobalLoggerProvider(loggerProvider);
 
   // --- Instrumentations ---

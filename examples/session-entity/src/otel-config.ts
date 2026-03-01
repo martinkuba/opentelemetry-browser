@@ -8,7 +8,10 @@ import type { ExportResult } from '@opentelemetry/core';
 import { ExportResultCode } from '@opentelemetry/core';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
-import { SessionAwareLoggerProvider } from '@opentelemetry/sdk-browser';
+import {
+  createSessionEntity,
+  EntityAwareLoggerProvider,
+} from '@opentelemetry/sdk-browser';
 import type {
   LogRecordExporter,
   ReadableLogRecord,
@@ -37,20 +40,33 @@ export function initOtel(onLogExport: (record: ReadableLogRecord) => void) {
     maxDuration: 120, // 2 minutes max
   });
 
-  // Create the session-aware logger provider.
-  // This wraps a base LoggerProvider and manages entity-bound child providers.
-  // When the session rotates, the child provider is swapped — instrumentations
-  // holding Logger references don't need to know.
-  const loggerProvider = new SessionAwareLoggerProvider(
-    {
-      resource,
-      processors: [
-        new SimpleLogRecordProcessor(debugExporter),
-        new BatchLogRecordProcessor(new OTLPLogExporter()),
-      ],
+  // Create an entity-aware logger provider.
+  // forEntity() is the proposed SDK API for binding a provider to an entity.
+  // setEntity() dynamically rebinds it — loggers obtained via getLogger()
+  // automatically route through the new entity-bound provider.
+  const loggerProvider = new EntityAwareLoggerProvider({
+    resource,
+    processors: [
+      new SimpleLogRecordProcessor(debugExporter),
+      new BatchLogRecordProcessor(new OTLPLogExporter()),
+    ],
+  });
+
+  // Bind to the current session entity
+  const sessionId = sessionManager.getSessionId();
+  if (sessionId) {
+    loggerProvider.setEntity(createSessionEntity(sessionId));
+  }
+
+  // Rebind on session rotation
+  sessionManager.addObserver({
+    onSessionStarted(session) {
+      loggerProvider.setEntity(createSessionEntity(session.id));
     },
-    sessionManager,
-  );
+    onSessionEnded() {
+      loggerProvider.forceFlush();
+    },
+  });
 
   logs.setGlobalLoggerProvider(loggerProvider);
 

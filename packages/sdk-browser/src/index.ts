@@ -8,6 +8,4 @@ export { createSessionEntity } from './entity/createSessionEntity.ts';
 export type { Entity } from './entity/Entity.ts';
 export { EntityAwareLoggerProvider } from './entity/EntityAwareLoggerProvider.ts';
 export { mergeEntityIntoResource } from './entity/mergeEntityIntoResource.ts';
-export { SessionAwareLogger } from './entity/SessionAwareLogger.ts';
-export { SessionAwareLoggerProvider } from './entity/SessionAwareLoggerProvider.ts';
 export type { BrowserSDKConfiguration } from './types.ts';

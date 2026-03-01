@@ -45,7 +45,7 @@ sessionManager.start().then(() => {
 // --- Simulate an instrumentation that grabs a logger once ---
 // This is the key test: the logger is obtained ONCE and reused.
 // After session rotation, it should still emit logs with the NEW session.id
-// on the Resource, because SessionAwareLogger delegates dynamically.
+// on the Resource, because EntityAwareLoggerProvider delegates dynamically.
 const logger = logs
   .getLoggerProvider()
   .getLogger('demo-instrumentation', '1.0.0');

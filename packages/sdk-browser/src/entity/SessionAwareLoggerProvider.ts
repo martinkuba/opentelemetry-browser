@@ -8,7 +8,6 @@ import type {
   Logger,
   LoggerOptions,
 } from '@opentelemetry/api-logs';
-import type { Resource } from '@opentelemetry/resources';
 import type { LoggerProviderConfig } from '@opentelemetry/sdk-logs';
 import { LoggerProvider } from '@opentelemetry/sdk-logs';
 import type {
@@ -18,7 +17,7 @@ import type {
   SessionPublisher,
 } from '@opentelemetry/web-common';
 import { createSessionEntity } from './createSessionEntity.ts';
-import { mergeEntityIntoResource } from './mergeEntityIntoResource.ts';
+import { EntityAwareLoggerProvider } from './EntityAwareLoggerProvider.ts';
 import { SessionAwareLogger } from './SessionAwareLogger.ts';
 
 /**
@@ -31,15 +30,13 @@ import { SessionAwareLogger } from './SessionAwareLogger.ts';
  * know about it. SessionAwareLoggerProvider acts as a stable global provider
  * while internally swapping the child provider on session rotation.
  *
- * The child providers share the same processor instances (and therefore the
- * same export pipeline), matching the behavior of forEntity() in the upstream
- * prototype.
+ * Internally it uses EntityAwareLoggerProvider.forEntity() to obtain
+ * entity-bound child providers that share the same export pipeline.
  */
 export class SessionAwareLoggerProvider
   implements ILoggerProvider, SessionObserver
 {
-  private _baseResource: Resource;
-  private _config: Omit<LoggerProviderConfig, 'resource'>;
+  private _baseProvider: EntityAwareLoggerProvider;
   private _currentProvider: LoggerProvider;
   private _loggers: Map<string, SessionAwareLogger> = new Map();
 
@@ -47,21 +44,16 @@ export class SessionAwareLoggerProvider
     config: LoggerProviderConfig,
     sessionManager: SessionProvider & SessionPublisher,
   ) {
-    // Separate the resource from the rest of the config so we can create
-    // new child providers with different resources but same processors.
-    const { resource, ...restConfig } = config;
-    this._baseResource =
-      resource ??
-      ({
-        attributes: {},
-        merge: (r: Resource | null) => r ?? this._baseResource,
-        getRawAttributes: () => [],
-      } as Resource);
-    this._config = restConfig;
+    this._baseProvider = new EntityAwareLoggerProvider(config);
 
     // Create initial child provider with current session
     const sessionId = sessionManager.getSessionId();
-    this._currentProvider = this._createProviderForSession(sessionId);
+    if (sessionId) {
+      const entity = createSessionEntity(sessionId);
+      this._currentProvider = this._baseProvider.forEntity(entity);
+    } else {
+      this._currentProvider = this._baseProvider;
+    }
 
     sessionManager.addObserver(this);
   }
@@ -91,7 +83,8 @@ export class SessionAwareLoggerProvider
   // --- SessionObserver ---
 
   onSessionStarted(newSession: Session): void {
-    this._currentProvider = this._createProviderForSession(newSession.id);
+    const entity = createSessionEntity(newSession.id);
+    this._currentProvider = this._baseProvider.forEntity(entity);
   }
 
   onSessionEnded(_session: Session): void {
@@ -107,20 +100,5 @@ export class SessionAwareLoggerProvider
 
   async shutdown(): Promise<void> {
     return this._currentProvider.shutdown();
-  }
-
-  // --- Internal ---
-
-  private _createProviderForSession(sessionId: string | null): LoggerProvider {
-    let resource = this._baseResource;
-    if (sessionId) {
-      const entity = createSessionEntity(sessionId);
-      resource = mergeEntityIntoResource(this._baseResource, entity);
-    }
-
-    return new LoggerProvider({
-      ...this._config,
-      resource,
-    });
   }
 }
